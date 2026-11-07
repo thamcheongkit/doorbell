@@ -137,7 +137,7 @@ final class HTTPServer {
             return
         }
         let suppliedTitle = json["title"] as? String ?? ""
-        let title = suppliedTitle.isEmpty ? "Notifier" : suppliedTitle
+        let title = suppliedTitle.isEmpty ? "Doorbell" : suppliedTitle
 
         onNotify(title, message) { [weak self] error in
             if let error {
@@ -178,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         timeFormatter.dateFormat = "HH:mm"
-        statusItem.button?.image = NSImage(systemSymbolName: "bell", accessibilityDescription: "macos-notifier")
+        statusItem.button?.image = NSImage(systemSymbolName: "bell", accessibilityDescription: "Doorbell")
 
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -253,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     }
 
     @objc private func sendTest() {
-        deliver(title: "macos-notifier", message: "Test notification") { error in
+        deliver(title: "Doorbell", message: "Test notification") { error in
             if let error { NSLog("test notification failed: %@", error) }
         }
     }

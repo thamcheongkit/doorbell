@@ -1,4 +1,4 @@
-# macos-notifier
+# Doorbell
 
 A menu bar app that shows HTTP requests as macOS notifications. The bell menu shows the service status, lists the last 10 notifications (cleared when the app quits), and can send a test notification.
 
@@ -6,8 +6,8 @@ Requires macOS 13 or later on Apple silicon.
 
 ## Install
 
-1. Download `macos-notifier.dmg` from the latest run of the [Build DMG workflow](../../actions/workflows/build-dmg.yml).
-2. Open it and drag `macos-notifier.app` to Applications. Without an admin account, use the `Applications` folder in your home folder instead, creating it if needed.
+1. Download `Doorbell.dmg` from the latest run of the [Build DMG workflow](../../actions/workflows/build-dmg.yml).
+2. Open it and drag `Doorbell.app` to Applications. Without an admin account, use the `Applications` folder in your home folder instead, creating it if needed.
 3. Open the app. It's unsigned, so macOS blocks it the first time: open System Settings > Privacy & Security and choose **Open Anyway**.
 4. Choose **Allow** when asked about notifications.
 
@@ -30,7 +30,7 @@ mac curl -d '{"title":"Build","message":"Finished"}' http://127.0.0.1:8765/notif
 | Field | Required | Default |
 | --- | --- | --- |
 | `message` | yes | |
-| `title` | no | `Notifier` |
+| `title` | no | `Doorbell` |
 
 `GET /health` returns `{"status":"ok"}`.
 
@@ -46,4 +46,6 @@ Choose **Quit** from the bell menu, then delete the app from Applications.
 
 ## Build
 
-GitHub Actions builds the DMG on every push to `master`. To build it locally on a Mac with the Command Line Tools, run `./build-dmg.sh`; the output is `dist/macos-notifier.dmg`.
+GitHub Actions builds the DMG on every push to `master`. To build it locally on a Mac with the Command Line Tools and `librsvg` (`brew install librsvg`), run `./build-dmg.sh`; the output is `dist/Doorbell.dmg`.
+
+The app icon is generated from `icon.svg`.

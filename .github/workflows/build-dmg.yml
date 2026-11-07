@@ -13,9 +13,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+      - run: brew install librsvg
       - run: ./build-dmg.sh
       - uses: actions/upload-artifact@v7
         with:
-          path: dist/macos-notifier.dmg
+          path: dist/Doorbell.dmg
           archive: false
           if-no-files-found: error
