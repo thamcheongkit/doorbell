@@ -202,7 +202,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         server.start()
         self.server = server
 
-        if Bundle.main.bundlePath.hasPrefix("/Applications/") {
+        // Skip this when running from the DMG, whose path disappears on eject.
+        let path = Bundle.main.bundlePath
+        if path.hasPrefix("/Applications/") || path.hasPrefix(NSHomeDirectory() + "/Applications/") {
             do {
                 try SMAppService.mainApp.register()
             } catch {

@@ -7,11 +7,11 @@ Requires macOS 13 or later on Apple silicon.
 ## Install
 
 1. Download `macos-notifier.dmg` from the latest run of the [Build DMG workflow](../../actions/workflows/build-dmg.yml).
-2. Open it and drag `macos-notifier.app` to Applications.
+2. Open it and drag `macos-notifier.app` to Applications. Without an admin account, use the `Applications` folder in your home folder instead, creating it if needed.
 3. Open the app. It's unsigned, so macOS blocks it the first time: open System Settings > Privacy & Security and choose **Open Anyway**.
 4. Choose **Allow** when asked about notifications.
 
-The app starts at login once it's in Applications. To turn that off, use System Settings > General > Login Items.
+The app starts at login once it's in either Applications folder. To turn that off, use System Settings > General > Login Items.
 
 ## Send a notification
 
