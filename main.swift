@@ -357,7 +357,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
 
         let center = UNUserNotificationCenter.current()
         center.delegate = self
-        center.requestAuthorization(options: [.alert]) { _, error in
+        center.requestAuthorization(options: [.alert, .sound]) { _, error in
             if let error { NSLog("notification authorization failed: %@", error.localizedDescription) }
         }
 
@@ -425,7 +425,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .list])
+        completionHandler([.banner, .list, .sound])
     }
 
     nonisolated func userNotificationCenter(
@@ -479,6 +479,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = renderMarkdown(message).string
+        content.sound = UNNotificationSound(named: UNNotificationSoundName("doorbell.wav"))
         content.userInfo = ["title": title, "message": message]
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
 

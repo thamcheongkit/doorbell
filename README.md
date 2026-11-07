@@ -63,6 +63,8 @@ jq -n --rawfile message notes.md '{title: "Notes", message: $message}' |
 
 If the API returns `sent` but nothing appears, check the app's setting in System Settings > Notifications and Focus mode.
 
+Notifications play a ding-dong sound (`doorbell.wav`). If you don't hear it, turn on **Play sound for notifications** for Doorbell in System Settings > Notifications.
+
 ## Uninstall
 
 Choose **Quit** from the bell menu, then delete the app from Applications.
