@@ -201,6 +201,7 @@ func renderMarkdown(_ markdown: String) -> NSAttributedString {
 
     let result = NSMutableAttributedString()
     var lastBlock: Int?
+    var lastRoot: Int?
     var lastCell: Int?
     var lastListItem: Int?
 
@@ -210,7 +211,6 @@ func renderMarkdown(_ markdown: String) -> NSAttributedString {
         var cellID: Int?
         var blockID: Int?
         var listItem: (id: Int, ordinal: Int, index: Int)?
-        var isTight = false
 
         for (index, component) in components.enumerated() {
             switch component.kind {
@@ -218,10 +218,7 @@ func renderMarkdown(_ markdown: String) -> NSAttributedString {
                 isCell = true
                 cellID = component.identity
             case .listItem(let ordinal):
-                isTight = true
                 if listItem == nil { listItem = (component.identity, ordinal, index) }
-            case .tableRow, .tableHeaderRow:
-                isTight = true
             default:
                 break
             }
@@ -274,8 +271,14 @@ func renderMarkdown(_ markdown: String) -> NSAttributedString {
         if let link = run.link, link.scheme == "http" || link.scheme == "https" { attributes[.link] = link }
 
         if blockID != lastBlock {
-            if result.length > 0 { result.append(NSAttributedString(string: isTight ? "\n" : "\n\n", attributes: attributes)) }
+            // Items of one list or table sit on adjacent lines; separate blocks get a gap.
+            let root = components.last?.identity
+            if result.length > 0 {
+                let separator = root == lastRoot ? "\n" : "\n\n"
+                result.append(NSAttributedString(string: separator, attributes: [.font: bodyFont]))
+            }
             lastBlock = blockID
+            lastRoot = root
             lastCell = cellID
             if let listItem, listItem.id != lastListItem {
                 lastListItem = listItem.id
@@ -486,7 +489,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     }
 }
 
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
+MainActor.assumeIsolated {
+    let app = NSApplication.shared
+    let delegate = AppDelegate()
+    app.delegate = delegate
+    app.run()
+}
