@@ -1,10 +1,9 @@
-// Menu bar app that listens on localhost and shows POSTed messages as notifications.
+// Menu bar app that listens on the network and shows POSTed messages as notifications.
 import AppKit
 import Network
 import ServiceManagement
 import UserNotifications
 
-let listenHost = "127.0.0.1"
 let listenPort: NWEndpoint.Port = 8765
 let maxHeaderBytes = 16 * 1024
 let maxBodyBytes = 64 * 1024
@@ -17,7 +16,30 @@ enum Parsed {
     case notify(Data)
 }
 
-func parseRequest(_ buffer: Data) -> Parsed {
+func loadToken() -> String {
+    let key = "token"
+    if let token = UserDefaults.standard.string(forKey: key) { return token }
+    let token = (0..<32).map { _ in String(format: "%02x", UInt8.random(in: .min ... .max)) }.joined()
+    UserDefaults.standard.set(token, forKey: key)
+    return token
+}
+
+func isLoopback(_ endpoint: NWEndpoint) -> Bool {
+    guard case .hostPort(let host, _) = endpoint else { return false }
+    switch host {
+    case .ipv4(let address): return address.isLoopback
+    case .ipv6(let address): return address.isLoopback || address.asIPv4?.isLoopback == true
+    default: return false
+    }
+}
+
+func constantTimeEqual(_ a: String, _ b: String) -> Bool {
+    let a = Array(a.utf8), b = Array(b.utf8)
+    guard a.count == b.count else { return false }
+    return zip(a, b).reduce(UInt8(0)) { $0 | ($1.0 ^ $1.1) } == 0
+}
+
+func parseRequest(_ buffer: Data, requiredToken: String?) -> Parsed {
     guard let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) else {
         return buffer.count > maxHeaderBytes ? .respond(400, ["error": "headers too large"]) : .incomplete
     }
@@ -44,6 +66,10 @@ func parseRequest(_ buffer: Data) -> Parsed {
         return .respond(403, ["error": "browser requests are not allowed"])
     }
 
+    if let requiredToken, !constantTimeEqual(headers["authorization"] ?? "", "Bearer \(requiredToken)") {
+        return .respond(401, ["error": "invalid token"])
+    }
+
     if method == "GET" && path == "/health" { return .respond(200, ["status": "ok"]) }
     if path != "/notify" { return .respond(404, ["error": "not found"]) }
     if method != "POST" { return .respond(405, ["error": "use POST"]) }
@@ -60,11 +86,13 @@ func parseRequest(_ buffer: Data) -> Parsed {
 final class HTTPServer {
     typealias NotifyHandler = (_ title: String, _ message: String, _ done: @escaping (String?) -> Void) -> Void
 
+    private let token: String
     private let onNotify: NotifyHandler
     private let onStatus: (String) -> Void
     private var listener: NWListener?
 
-    init(onNotify: @escaping NotifyHandler, onStatus: @escaping (String) -> Void) {
+    init(token: String, onNotify: @escaping NotifyHandler, onStatus: @escaping (String) -> Void) {
+        self.token = token
         self.onNotify = onNotify
         self.onStatus = onStatus
     }
@@ -73,14 +101,13 @@ final class HTTPServer {
     func start() {
         let parameters = NWParameters.tcp
         parameters.allowLocalEndpointReuse = true
-        parameters.requiredLocalEndpoint = .hostPort(host: NWEndpoint.Host(listenHost), port: listenPort)
 
         do {
-            let listener = try NWListener(using: parameters)
+            let listener = try NWListener(using: parameters, on: listenPort)
             listener.stateUpdateHandler = { [weak self] state in
                 switch state {
                 case .ready:
-                    self?.onStatus("Listening on \(listenHost):\(listenPort.rawValue)")
+                    self?.onStatus("Listening on port \(listenPort.rawValue)")
                 case .failed(let error):
                     self?.reportFailure(error.localizedDescription)
                 default:
@@ -97,7 +124,7 @@ final class HTTPServer {
 
     private func reportFailure(_ error: String) {
         NSLog("server failed: %@", error)
-        onStatus("Can't listen on \(listenHost):\(listenPort.rawValue)")
+        onStatus("Can't listen on port \(listenPort.rawValue)")
     }
 
     private func accept(_ connection: NWConnection) {
@@ -112,7 +139,9 @@ final class HTTPServer {
             var buffer = buffer
             if let data { buffer.append(data) }
 
-            switch parseRequest(buffer) {
+            // Requests from this Mac don't need the token.
+            let requiredToken = isLoopback(connection.endpoint) ? nil : self.token
+            switch parseRequest(buffer, requiredToken: requiredToken) {
             case .incomplete:
                 if isComplete || error != nil {
                     self.respond(connection, 400, ["error": "incomplete request"])
@@ -150,7 +179,7 @@ final class HTTPServer {
 
     private func respond(_ connection: NWConnection, _ status: Int, _ body: [String: String]) {
         let reasons = [
-            200: "OK", 400: "Bad Request", 403: "Forbidden", 404: "Not Found",
+            200: "OK", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found",
             405: "Method Not Allowed", 411: "Length Required",
             413: "Payload Too Large", 500: "Internal Server Error",
         ]
@@ -172,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let timeFormatter = DateFormatter()
+    private let token = loadToken()
     private var recent: [Received] = []
     private var serverStatus = "Starting…"
     private var server: HTTPServer?
@@ -192,6 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         }
 
         let server = HTTPServer(
+            token: token,
             onNotify: { [weak self] title, message, done in
                 MainActor.assumeIsolated { self?.deliver(title: title, message: message, done: done) }
             },
@@ -222,6 +253,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         let test = NSMenuItem(title: "Send Test Notification", action: #selector(sendTest), keyEquivalent: "")
         test.target = self
         menu.addItem(test)
+        let copyToken = NSMenuItem(title: "Copy Token", action: #selector(copyToken), keyEquivalent: "")
+        copyToken.target = self
+        menu.addItem(copyToken)
         menu.addItem(.separator())
 
         addLabel("Recent", to: menu)
@@ -256,6 +290,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         deliver(title: "Doorbell", message: "Test notification") { error in
             if let error { NSLog("test notification failed: %@", error) }
         }
+    }
+
+    @objc private func copyToken() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(token, forType: .string)
     }
 
     private func deliver(title: String, message: String, done: @escaping (String?) -> Void) {

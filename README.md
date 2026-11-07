@@ -21,18 +21,28 @@ From an app on the Mac:
 curl -d '{"title":"Build","message":"Finished"}' http://127.0.0.1:8765/notify
 ```
 
-From an OrbStack Linux machine, prefix the command with `mac`, because the app only listens on the Mac's localhost:
+From an OrbStack Linux machine, prefix the command with `mac`:
 
 ```sh
 mac curl -d '{"title":"Build","message":"Finished"}' http://127.0.0.1:8765/notify
 ```
+
+From another device, use the Mac's hostname and a token. Choose **Copy Token** from the bell menu, or run `defaults read io.github.thamcheongkit.doorbell token` on the Mac:
+
+```sh
+curl -H "Authorization: Bearer $DOORBELL_TOKEN" \
+  -d '{"title":"Build","message":"Finished"}' \
+  http://your-mac:8765/notify
+```
+
+Requests use plain HTTP, so the token and messages are only protected on an encrypted network such as Tailscale. Avoid sending them over untrusted Wi-Fi.
 
 | Field | Required | Default |
 | --- | --- | --- |
 | `message` | yes | |
 | `title` | no | `Doorbell` |
 
-`GET /health` returns `{"status":"ok"}`.
+`GET /health` returns `{"status":"ok"}`. It needs the token too when called from another device.
 
 Requests with an `Origin` header are rejected, so web pages open in a browser can't send notifications. Bodies are limited to 64 KB.
 
