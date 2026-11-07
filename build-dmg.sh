@@ -1,12 +1,15 @@
 #!/bin/sh
-# Packages the service into dist/macos-notifier.dmg. Requires macOS.
+# Builds dist/macos-notifier.dmg. Requires macOS with the Swift compiler.
 set -eu
 cd "$(dirname "$0")"
 
+APP=dist/macos-notifier/macos-notifier.app
+
 rm -rf dist
-mkdir -p dist/macos-notifier
-cp notifier.pl README.md dist/macos-notifier/
-cp install.sh dist/macos-notifier/Install.command
-cp uninstall.sh dist/macos-notifier/Uninstall.command
+mkdir -p "$APP/Contents/MacOS"
+cp Info.plist "$APP/Contents/"
+swiftc -O -target arm64-apple-macos13.0 main.swift -o "$APP/Contents/MacOS/macos-notifier"
+codesign --force --sign - "$APP"
+ln -s /Applications dist/macos-notifier/Applications
 
 hdiutil create -volname macos-notifier -srcfolder dist/macos-notifier -format UDZO dist/macos-notifier.dmg

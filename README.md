@@ -1,20 +1,17 @@
 # macos-notifier
 
-A background service that shows HTTP requests as macOS notifications. It uses only what ships with macOS (Perl, `osascript`, launchd), so it needs no Xcode or Command Line Tools.
+A menu bar app that shows HTTP requests as macOS notifications. The bell menu lists the last 10 notifications, which are cleared when the app quits, and can send a test notification.
+
+Requires macOS 13 or later on Apple silicon.
 
 ## Install
 
-**From the DMG:** download `macos-notifier.dmg` from the latest run of the [Build DMG workflow](../../actions/workflows/build-dmg.yml), open it, and double-click `Install.command`. The DMG is unsigned, so macOS blocks it the first time: open System Settings > Privacy & Security and choose **Open Anyway**.
+1. Download `macos-notifier.dmg` from the latest run of the [Build DMG workflow](../../actions/workflows/build-dmg.yml).
+2. Open it and drag `macos-notifier.app` to Applications.
+3. Open the app. It's unsigned, so macOS blocks it the first time: open System Settings > Privacy & Security and choose **Open Anyway**.
+4. Choose **Allow** when asked about notifications.
 
-**From source:** run this on the Mac or from an OrbStack Linux machine:
-
-```sh
-./install.sh
-```
-
-Either way, the service is copied to `~/Library/Application Support/macos-notifier` on the Mac and starts at login. Re-run the installer after changing `notifier.pl`.
-
-The first time, allow notifications for **Script Editor** in System Settings > Notifications. macOS shows them under that name.
+The app starts at login once it's in Applications. To turn that off, use System Settings > General > Login Items.
 
 ## Send a notification
 
@@ -24,7 +21,7 @@ From an app on the Mac:
 curl -d '{"title":"Build","message":"Finished"}' http://127.0.0.1:8765/notify
 ```
 
-From the OrbStack Linux machine, prefix the command with `mac`, because the service only listens on the Mac's localhost:
+From an OrbStack Linux machine, prefix the command with `mac`, because the app only listens on the Mac's localhost:
 
 ```sh
 mac curl -d '{"title":"Build","message":"Finished"}' http://127.0.0.1:8765/notify
@@ -41,18 +38,12 @@ Requests with an `Origin` header are rejected, so web pages open in a browser ca
 
 ## Troubleshooting
 
-Logs are in `~/Library/Logs/macos-notifier.log` on the Mac.
-
-If the API returns `sent` but nothing appears, check the Script Editor notification setting and Focus mode.
+If the API returns `sent` but nothing appears, check the app's setting in System Settings > Notifications and Focus mode.
 
 ## Uninstall
 
-Double-click `Uninstall.command` in the DMG, or run:
+Choose **Quit** from the bell menu, then delete the app from Applications.
 
-```sh
-./uninstall.sh
-```
+## Build
 
-## Build the DMG
-
-GitHub Actions builds the DMG on every push to `master`. To build it locally on a Mac, run `./build-dmg.sh`; the output is `dist/macos-notifier.dmg`.
+GitHub Actions builds the DMG on every push to `master`. To build it locally on a Mac with the Command Line Tools, run `./build-dmg.sh`; the output is `dist/macos-notifier.dmg`.
