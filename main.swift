@@ -342,6 +342,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     private let timeFormatter = DateFormatter()
     private let token = loadToken()
     private let messageWindow = MessageWindow()
+    private let doorbellSound = Bundle.main.url(forResource: "doorbell", withExtension: "wav")
+        .flatMap { NSSound(contentsOf: $0, byReference: true) }
     private var recent: [Received] = []
     private var serverStatus = "Starting…"
     private var server: HTTPServer?
@@ -425,7 +427,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .list, .sound])
+        completionHandler([.banner, .list])
     }
 
     nonisolated func userNotificationCenter(
@@ -479,13 +481,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = renderMarkdown(message).string
-        content.sound = UNNotificationSound(named: UNNotificationSoundName("doorbell.wav"))
         content.userInfo = ["title": title, "message": message]
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
 
-        UNUserNotificationCenter.current().add(request) { error in
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
             let description = error?.localizedDescription
-            DispatchQueue.main.async { done(description) }
+            DispatchQueue.main.async {
+                if description == nil { MainActor.assumeIsolated { self?.playSound() } }
+                done(description)
+            }
+        }
+    }
+
+    // The app plays the sound itself because macOS can fall back to its default
+    // sound for a bundled file. It still follows the app's sound setting.
+    private func playSound() {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            let isEnabled = settings.soundSetting == .enabled
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard isEnabled else { return }
+                    self?.doorbellSound?.stop()
+                    self?.doorbellSound?.play()
+                }
+            }
         }
     }
 }
