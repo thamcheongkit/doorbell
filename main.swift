@@ -61,12 +61,12 @@ final class HTTPServer {
     typealias NotifyHandler = (_ title: String, _ message: String, _ done: @escaping (String?) -> Void) -> Void
 
     private let onNotify: NotifyHandler
-    private let onFailure: (String) -> Void
+    private let onStatus: (String) -> Void
     private var listener: NWListener?
 
-    init(onNotify: @escaping NotifyHandler, onFailure: @escaping (String) -> Void) {
+    init(onNotify: @escaping NotifyHandler, onStatus: @escaping (String) -> Void) {
         self.onNotify = onNotify
-        self.onFailure = onFailure
+        self.onStatus = onStatus
     }
 
     // All server callbacks run on the main queue.
@@ -78,14 +78,26 @@ final class HTTPServer {
         do {
             let listener = try NWListener(using: parameters)
             listener.stateUpdateHandler = { [weak self] state in
-                if case .failed(let error) = state { self?.onFailure(error.localizedDescription) }
+                switch state {
+                case .ready:
+                    self?.onStatus("Listening on \(listenHost):\(listenPort.rawValue)")
+                case .failed(let error):
+                    self?.reportFailure(error.localizedDescription)
+                default:
+                    break
+                }
             }
             listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
             listener.start(queue: .main)
             self.listener = listener
         } catch {
-            onFailure(error.localizedDescription)
+            reportFailure(error.localizedDescription)
         }
+    }
+
+    private func reportFailure(_ error: String) {
+        NSLog("server failed: %@", error)
+        onStatus("Can't listen on \(listenHost):\(listenPort.rawValue)")
     }
 
     private func accept(_ connection: NWConnection) {
@@ -161,7 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let timeFormatter = DateFormatter()
     private var recent: [Received] = []
-    private var serverError: String?
+    private var serverStatus = "Starting…"
     private var server: HTTPServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -183,9 +195,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
             onNotify: { [weak self] title, message, done in
                 MainActor.assumeIsolated { self?.deliver(title: title, message: message, done: done) }
             },
-            onFailure: { [weak self] error in
-                NSLog("server failed: %@", error)
-                MainActor.assumeIsolated { self?.serverError = error }
+            onStatus: { [weak self] status in
+                MainActor.assumeIsolated { self?.serverStatus = status }
             }
         )
         server.start()
@@ -203,10 +214,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        if serverError != nil {
-            addLabel("Can't listen on \(listenHost):\(listenPort.rawValue)", to: menu)
-            menu.addItem(.separator())
-        }
+        addLabel(serverStatus, to: menu)
+        menu.addItem(.separator())
 
         let test = NSMenuItem(title: "Send Test Notification", action: #selector(sendTest), keyEquivalent: "")
         test.target = self

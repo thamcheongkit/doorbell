@@ -1,6 +1,6 @@
 # macos-notifier
 
-A menu bar app that shows HTTP requests as macOS notifications. The bell menu lists the last 10 notifications, which are cleared when the app quits, and can send a test notification.
+A menu bar app that shows HTTP requests as macOS notifications. The bell menu shows the service status, lists the last 10 notifications (cleared when the app quits), and can send a test notification.
 
 Requires macOS 13 or later on Apple silicon.
 
