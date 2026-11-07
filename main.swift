@@ -192,6 +192,141 @@ final class HTTPServer {
     }
 }
 
+func renderMarkdown(_ markdown: String) -> NSAttributedString {
+    let bodyFont = NSFont.systemFont(ofSize: 14)
+    let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
+    guard let parsed = try? AttributedString(markdown: markdown, options: options) else {
+        return NSAttributedString(string: markdown, attributes: [.font: bodyFont, .foregroundColor: NSColor.labelColor])
+    }
+
+    let result = NSMutableAttributedString()
+    var lastBlock: Int?
+    var lastCell: Int?
+    var lastListItem: Int?
+
+    for run in parsed.runs {
+        let components = run.presentationIntent?.components ?? []
+        var isCell = false
+        var cellID: Int?
+        var blockID: Int?
+        var listItem: (id: Int, ordinal: Int, index: Int)?
+        var isTight = false
+
+        for (index, component) in components.enumerated() {
+            switch component.kind {
+            case .tableCell:
+                isCell = true
+                cellID = component.identity
+            case .listItem(let ordinal):
+                isTight = true
+                if listItem == nil { listItem = (component.identity, ordinal, index) }
+            case .tableRow, .tableHeaderRow:
+                isTight = true
+            default:
+                break
+            }
+            if blockID == nil, !(isCell && cellID == component.identity) { blockID = component.identity }
+        }
+
+        var font = bodyFont
+        var color = NSColor.labelColor
+        var background: NSColor?
+        var indent: CGFloat = 0
+        var isCodeBlock = false
+
+        for component in components {
+            switch component.kind {
+            case .header(let level):
+                font = .boldSystemFont(ofSize: CGFloat(max(15, 26 - 2 * level)))
+            case .codeBlock:
+                font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+                background = .quaternaryLabelColor
+                isCodeBlock = true
+            case .blockQuote:
+                color = .secondaryLabelColor
+                indent += 20
+            case .tableHeaderRow:
+                font = .boldSystemFont(ofSize: 14)
+            case .orderedList, .unorderedList:
+                indent += 20
+            default:
+                break
+            }
+        }
+
+        let inline = run.inlinePresentationIntent ?? []
+        if inline.contains(.code) { font = .monospacedSystemFont(ofSize: 13, weight: .regular) }
+        if inline.contains(.stronglyEmphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask) }
+        if inline.contains(.emphasized) { font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask) }
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.firstLineHeadIndent = indent
+        paragraph.headIndent = indent
+        paragraph.lineSpacing = 2
+        paragraph.defaultTabInterval = 140
+
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font, .foregroundColor: color, .paragraphStyle: paragraph,
+        ]
+        if let background { attributes[.backgroundColor] = background }
+        if inline.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+        // Messages come from other apps, so only web links are clickable.
+        if let link = run.link, link.scheme == "http" || link.scheme == "https" { attributes[.link] = link }
+
+        if blockID != lastBlock {
+            if result.length > 0 { result.append(NSAttributedString(string: isTight ? "\n" : "\n\n", attributes: attributes)) }
+            lastBlock = blockID
+            lastCell = cellID
+            if let listItem, listItem.id != lastListItem {
+                lastListItem = listItem.id
+                var isOrdered = false
+                if listItem.index + 1 < components.count, case .orderedList = components[listItem.index + 1].kind {
+                    isOrdered = true
+                }
+                let marker = isOrdered ? "\(listItem.ordinal). " : "• "
+                result.append(NSAttributedString(string: marker, attributes: attributes))
+            }
+        } else if cellID != lastCell {
+            result.append(NSAttributedString(string: "\t", attributes: attributes))
+            lastCell = cellID
+        }
+
+        var text = String(parsed[run.range].characters)
+        if isCodeBlock, text.hasSuffix("\n") { text.removeLast() }
+        result.append(NSAttributedString(string: text, attributes: attributes))
+    }
+
+    return result
+}
+
+@MainActor
+final class MessageWindow {
+    private let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
+        styleMask: [.titled, .closable, .miniaturizable, .resizable],
+        backing: .buffered,
+        defer: false
+    )
+    private let textView: NSTextView
+
+    init() {
+        let scrollView = NSTextView.scrollableTextView()
+        textView = scrollView.documentView as! NSTextView
+        textView.isEditable = false
+        textView.textContainerInset = NSSize(width: 16, height: 16)
+        window.contentView = scrollView
+        window.isReleasedWhenClosed = false
+        window.center()
+    }
+
+    func show(title: String, message: String) {
+        window.title = title
+        textView.textStorage?.setAttributedString(renderMarkdown(message))
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUserNotificationCenterDelegate {
     private struct Received {
         let title: String
@@ -202,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let timeFormatter = DateFormatter()
     private let token = loadToken()
+    private let messageWindow = MessageWindow()
     private var recent: [Received] = []
     private var serverStatus = "Starting…"
     private var server: HTTPServer?
@@ -263,8 +399,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
             addLabel("No notifications yet", to: menu)
         }
         for item in recent {
-            let text = "\(item.title): \(item.message)".replacingOccurrences(of: "\n", with: " ")
-            addLabel("\(timeFormatter.string(from: item.date))  \(text.prefix(70))", to: menu)
+            let plain = renderMarkdown(item.message).string
+            let text = "\(item.title): \(plain)".replacingOccurrences(of: "\n", with: " ")
+            let entry = NSMenuItem(
+                title: "\(timeFormatter.string(from: item.date))  \(text.prefix(70))",
+                action: #selector(showRecent(_:)),
+                keyEquivalent: ""
+            )
+            entry.target = self
+            entry.representedObject = item
+            menu.addItem(entry)
         }
         menu.addItem(.separator())
 
@@ -280,6 +424,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
         completionHandler([.banner, .list])
     }
 
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let info = response.notification.request.content.userInfo
+        if let title = info["title"] as? String, let message = info["message"] as? String {
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated { self?.messageWindow.show(title: title, message: message) }
+            }
+        }
+        completionHandler()
+    }
+
     private func addLabel(_ title: String, to menu: NSMenu) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
@@ -287,9 +445,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
     }
 
     @objc private func sendTest() {
-        deliver(title: "Doorbell", message: "Test notification") { error in
+        let message = """
+        # Doorbell
+
+        **Markdown** works, with `inline code` and [links](https://github.com/thamcheongkit/doorbell).
+
+        - First item
+        - Second item
+        """
+        deliver(title: "Doorbell", message: message) { error in
             if let error { NSLog("test notification failed: %@", error) }
         }
+    }
+
+    @objc private func showRecent(_ sender: NSMenuItem) {
+        guard let item = sender.representedObject as? Received else { return }
+        messageWindow.show(title: item.title, message: item.message)
     }
 
     @objc private func copyToken() {
@@ -303,7 +474,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
 
         let content = UNMutableNotificationContent()
         content.title = title
-        content.body = message
+        content.body = renderMarkdown(message).string
+        content.userInfo = ["title": title, "message": message]
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
 
         UNUserNotificationCenter.current().add(request) { error in

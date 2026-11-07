@@ -1,6 +1,6 @@
 # Doorbell
 
-A menu bar app that shows HTTP requests as macOS notifications. The bell menu shows the service status, lists the last 10 notifications (cleared when the app quits), and can send a test notification.
+A menu bar app that shows HTTP requests as macOS notifications. Messages can use Markdown. The bell menu shows the service status, lists the last 10 notifications (cleared when the app quits), and can send a test notification.
 
 Requires macOS 13 or later on Apple silicon.
 
@@ -45,6 +45,19 @@ Requests use plain HTTP, so the token and messages are only protected on an encr
 `GET /health` returns `{"status":"ok"}`. It needs the token too when called from another device.
 
 Requests with an `Origin` header are rejected, so web pages open in a browser can't send notifications. Bodies are limited to 64 KB.
+
+## Markdown
+
+`message` is always treated as Markdown. macOS banners only show plain text, so the banner shows the text without formatting. Click the banner, or choose the message under Recent in the bell menu, to open it fully formatted.
+
+Headings, bold, italics, strikethrough, inline code, code blocks, lists, quotes, tables and web links are supported. Images aren't loaded.
+
+To send a Markdown file, use `jq` to put it in the JSON body:
+
+```sh
+jq -n --rawfile message notes.md '{title: "Notes", message: $message}' |
+  curl -d @- http://127.0.0.1:8765/notify
+```
 
 ## Troubleshooting
 

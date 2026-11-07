@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFBE55"/>
-      <stop offset="1" stop-color="#EE5F2B"/>
+      <stop offset="0" stop-color="#FF6259"/>
+      <stop offset="1" stop-color="#C8102E"/>
     </linearGradient>
     <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#FFFFFF"/>
       <stop offset="1" stop-color="#EDE6DF"/>
     </linearGradient>
     <linearGradient id="button" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#F58A3C"/>
-      <stop offset="1" stop-color="#D9481C"/>
+      <stop offset="0" stop-color="#F2484B"/>
+      <stop offset="1" stop-color="#B50F24"/>
     </linearGradient>
   </defs>
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#background)"/>
@@ -20,7 +20,7 @@
     <path d="M758 340A300 300 0 0 1 758 684" opacity="0.65"/>
     <path d="M266 340A300 300 0 0 0 266 684" opacity="0.65"/>
   </g>
-  <rect x="402" y="232" width="220" height="560" rx="110" fill="#B23A14" opacity="0.28" transform="translate(0 14)"/>
+  <rect x="402" y="232" width="220" height="560" rx="110" fill="#7A0A1A" opacity="0.28" transform="translate(0 14)"/>
   <rect x="402" y="232" width="220" height="560" rx="110" fill="url(#plate)"/>
   <circle cx="512" cy="512" r="82" fill="#D8CFC6"/>
   <circle cx="512" cy="512" r="66" fill="url(#button)"/>
