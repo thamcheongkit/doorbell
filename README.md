@@ -4,13 +4,15 @@ A background service that shows HTTP requests as macOS notifications. It uses on
 
 ## Install
 
-Run from the OrbStack Linux machine:
+**From the DMG:** download `macos-notifier.dmg` from the latest run of the [Build DMG workflow](../../actions/workflows/build-dmg.yml), open it, and double-click `Install.command`. The DMG is unsigned, so macOS blocks it the first time: open System Settings > Privacy & Security and choose **Open Anyway**.
+
+**From source:** run this on the Mac or from an OrbStack Linux machine:
 
 ```sh
 ./install.sh
 ```
 
-This copies the service to `~/Library/Application Support/macos-notifier` on the Mac and starts it at login. Re-run it after changing `notifier.pl`.
+Either way, the service is copied to `~/Library/Application Support/macos-notifier` on the Mac and starts at login. Re-run the installer after changing `notifier.pl`.
 
 The first time, allow notifications for **Script Editor** in System Settings > Notifications. macOS shows them under that name.
 
@@ -45,6 +47,12 @@ If the API returns `sent` but nothing appears, check the Script Editor notificat
 
 ## Uninstall
 
+Double-click `Uninstall.command` in the DMG, or run:
+
 ```sh
 ./uninstall.sh
 ```
+
+## Build the DMG
+
+GitHub Actions builds the DMG on every push to `master`. To build it locally on a Mac, run `./build-dmg.sh`; the output is `dist/macos-notifier.dmg`.

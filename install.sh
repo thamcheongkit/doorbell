@@ -1,8 +1,11 @@
 #!/bin/sh
-# Run from the OrbStack Linux machine. Copies the service to the Mac because
-# macOS blocks launchd and Mac processes from reading files under ~/OrbStack.
+# Runs on the Mac, or from an OrbStack Linux machine through its `mac` command.
+# Copies the service to ~/Library because macOS blocks launchd and Mac
+# processes from reading files under ~/OrbStack.
 set -eu
 cd "$(dirname "$0")"
+
+[ "$(uname)" = Darwin ] && mac() { "$@"; }
 
 LABEL=local.macos-notifier
 MAC_HOME=$(mac sh -c 'printf %s "$HOME"')

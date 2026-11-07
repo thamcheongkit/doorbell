@@ -1,6 +1,8 @@
 #!/bin/sh
-# Run from the OrbStack Linux machine.
+# Runs on the Mac, or from an OrbStack Linux machine through its `mac` command.
 set -eu
+
+[ "$(uname)" = Darwin ] && mac() { "$@"; }
 
 LABEL=local.macos-notifier
 MAC_HOME=$(mac sh -c 'printf %s "$HOME"')

@@ -1,0 +1,21 @@
+name: Build DMG
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: ./build-dmg.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          path: dist/macos-notifier.dmg
+          archive: false
+          if-no-files-found: error
